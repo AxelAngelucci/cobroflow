@@ -1,0 +1,57 @@
+steps:
+  # Build the Docker image
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA}'
+      - '-t'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:latest'
+      - '.'
+
+  # Push the image to Artifact Registry
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - '--all-tags'
+      - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}'
+
+  # Deploy to Cloud Run
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    entrypoint: bash
+    args:
+      - '-c'
+      - |
+        gcloud run deploy ${_SERVICE} \
+          --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA} \
+          --region=${_REGION} \
+          --platform=managed \
+          --add-cloudsql-instances=${_CLOUD_SQL_INSTANCE} \
+          --set-env-vars='^||^DB_HOST=/cloudsql/${_CLOUD_SQL_INSTANCE}||DB_PORT=5432||DB_NAME=${_DB_NAME}||DB_USER=${_DB_USER}||DEBUG=false||GCP_PROJECT_ID=${PROJECT_ID}||GCP_LOCATION=${_REGION}||VERTEX_LOCAL_VECTOR_STORE=true||VERTEX_EMBEDDING_MODEL=text-embedding-005||VERTEX_FLASH_MODEL=gemini-2.0-flash-001||VERTEX_PRO_MODEL=gemini-2.5-pro-preview-06-05||CORS_ORIGINS=["http://localhost:4200","https://app.cobroflow.com"]' \
+          --set-secrets="DB_PASSWORD=db-password:latest,SECRET_KEY=jwt-secret:latest" \
+          --min-instances=${_MIN_INSTANCES} \
+          --max-instances=${_MAX_INSTANCES} \
+          --memory=${_MEMORY} \
+          --cpu=${_CPU} \
+          --timeout=300 \
+          --concurrency=80 \
+          --port=8080 \
+          --allow-unauthenticated
+
+substitutions:
+  _REGION: us-central1
+  _REPO: cobroflow
+  _SERVICE: cobroflow-backend
+  _CLOUD_SQL_INSTANCE: cobro-flow:us-central1:cobro-flow
+  _DB_NAME: postgres
+  _DB_USER: postgres
+  _MIN_INSTANCES: '0'
+  _MAX_INSTANCES: '5'
+  _MEMORY: 2Gi
+  _CPU: '1'
+
+images:
+  - '${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}'
+
+options:
+  logging: CLOUD_LOGGING_ONLY
