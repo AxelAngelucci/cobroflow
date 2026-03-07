@@ -1,19 +1,24 @@
+import logging
 from datetime import datetime
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import select, func
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser
 from app.crud import ai_agent as ai_crud
 from app.db.session import get_db
+from app.models.ai_agent import AgentStatus, MessageRole, MessageSentiment
+from app.models.debtor import Debtor
+from app.models.invoice import Invoice, InvoiceStatus
 from app.schemas.ai_agent import (
     AIAgentConfigBase, AIAgentConfigResponse, AIAgentConfigUpdate,
     AIAgentPersonalityResponse, AIAgentPersonalityCreate, AIAgentPersonalityUpdate,
     AIConversationResponse, AIConversationCreate, AIConversationUpdate,
     AIConversationListResponse,
-    AIConversationMessageResponse, AIConversationMessageCreate,
+    AIConversationMessageResponse, AIConversationMessageCreate, AIConversationReply,
     AITrainingDocumentResponse, AITrainingDocumentCreate, AITrainingDocumentUpdate,
     AITrainingDocumentListResponse,
     AIBusinessRuleResponse, AIBusinessRuleCreate, AIBusinessRuleUpdate,
@@ -27,6 +32,9 @@ from app.schemas.ai_agent import (
     AIAgentChannelConfigResponse, AIAgentChannelConfigCreate, AIAgentChannelConfigUpdate,
     AIAgentOperatingHoursResponse, AIAgentOperatingHoursCreate,
 )
+from app.services.vertex_ai import VertexAIGenerator
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -268,7 +276,7 @@ def get_messages(
 
 @router.post(
     "/conversations/{conversation_id}/messages",
-    response_model=AIConversationMessageResponse,
+    response_model=AIConversationReply,
     status_code=status.HTTP_201_CREATED,
 )
 def create_message(
@@ -276,7 +284,7 @@ def create_message(
     data: AIConversationMessageCreate,
     current_user: CurrentUser,
     db: Annotated[Session, Depends(get_db)],
-) -> AIConversationMessageResponse:
+) -> AIConversationReply:
     org_id = _require_org(current_user)
     conversation = ai_crud.get_conversation_by_id(db, conversation_id, org_id)
     if not conversation:
@@ -284,7 +292,118 @@ def create_message(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Conversation not found",
         )
-    return ai_crud.create_message(db, data, conversation_id)
+
+    # 1. Save the incoming message
+    user_msg = ai_crud.create_message(db, data, conversation_id)
+
+    # 2. Auto-respond only for client messages when agent is active
+    agent_response = None
+    if data.role == MessageRole.CLIENT:
+        agent_config = ai_crud.get_agent_config_simple(db, org_id)
+        if agent_config and agent_config.auto_respond and agent_config.status == AgentStatus.ACTIVE:
+            try:
+                agent_response = _generate_and_save_agent_response(
+                    db=db,
+                    conversation=conversation,
+                    org_id=str(org_id),
+                )
+            except Exception:
+                logger.exception(
+                    "Vertex AI generation failed for conversation %s — returning user message only",
+                    conversation_id,
+                )
+
+    return AIConversationReply(
+        user_message=AIConversationMessageResponse.model_validate(user_msg),
+        agent_response=AIConversationMessageResponse.model_validate(agent_response) if agent_response else None,
+    )
+
+
+def _generate_and_save_agent_response(
+    db: Session,
+    conversation,
+    org_id: str,
+):
+    """Call Vertex AI and persist the agent reply message. Returns the saved message."""
+    # Build conversation history from existing messages
+    history = [
+        {"role": msg.role.value, "content": msg.content}
+        for msg in conversation.messages
+    ]
+
+    # Fetch debtor context (basic info + outstanding debt)
+    debtor = db.execute(
+        select(Debtor).where(Debtor.id == conversation.debtor_id)
+    ).scalar_one_or_none()
+
+    debtor_context: dict = {"name": "Cliente", "total_debt": 0, "days_overdue": 0, "currency": "ARS"}
+    if debtor:
+        debtor_context["name"] = debtor.name
+        debtor_context["risk_score"] = debtor.risk_score or 50
+        debtor_context["tags"] = debtor.tags or []
+
+        # Aggregate outstanding invoices
+        row = db.execute(
+            select(
+                func.coalesce(func.sum(Invoice.balance), 0).label("total_balance"),
+                func.coalesce(
+                    func.max(func.extract("day", func.now() - Invoice.due_date)), 0
+                ).label("max_days_overdue"),
+                Invoice.currency,
+            )
+            .where(
+                Invoice.debtor_id == debtor.id,
+                Invoice.status.in_([InvoiceStatus.PENDING, InvoiceStatus.OVERDUE]),
+            )
+            .group_by(Invoice.currency)
+            .limit(1)
+        ).first()
+
+        if row:
+            debtor_context["total_debt"] = float(row.total_balance)
+            debtor_context["days_overdue"] = int(row.max_days_overdue)
+            debtor_context["currency"] = row.currency or "ARS"
+
+    # Fetch agent personality
+    personality_obj = ai_crud.get_personality(db, UUID(org_id))
+    agent_personality = None
+    if personality_obj:
+        agent_personality = {
+            "tone": personality_obj.tone.value,
+            "formality_level": personality_obj.formality_level,
+            "empathy_level": personality_obj.empathy_level,
+            "language": personality_obj.language,
+            "system_prompt": personality_obj.system_prompt,
+            "custom_instructions": personality_obj.custom_instructions,
+            "forbidden_topics": personality_obj.forbidden_topics,
+        }
+
+    # Call Vertex AI
+    generator = VertexAIGenerator(db=db)
+    result = generator.generate_conversation_response(
+        organization_id=org_id,
+        conversation_history=history,
+        debtor_context=debtor_context,
+        agent_personality=agent_personality,
+        channel=conversation.channel.value,
+    )
+
+    # Map heuristic sentiment to enum
+    sentiment_map = {
+        "positive": MessageSentiment.POSITIVE,
+        "neutral": MessageSentiment.NEUTRAL,
+        "negative": MessageSentiment.NEGATIVE,
+    }
+
+    # Persist the agent message
+    from app.schemas.ai_agent import AIConversationMessageCreate as MsgCreate
+    agent_msg_data = MsgCreate(
+        role=MessageRole.AGENT,
+        content=result["content"],
+        sentiment=sentiment_map.get(result.get("sentiment", "neutral"), MessageSentiment.NEUTRAL),
+        tokens_used=result.get("tokens_used"),
+    )
+    return ai_crud.create_message(db, agent_msg_data, conversation.id)
 
 
 # ============== TRAINING DOCUMENTS ==============

@@ -409,9 +409,7 @@ def _enqueue_message_task(
                 headers={"Content-Type": "application/json"},
                 body=json.dumps(payload).encode(),
                 oidc_token=tasks_v2.OidcToken(
-                    service_account_email=(
-                        f"{settings.GCP_PROJECT_ID}@appspot.gserviceaccount.com"
-                    ),
+                    service_account_email=settings.CLOUD_TASKS_SERVICE_ACCOUNT,
                 ),
             ),
         )

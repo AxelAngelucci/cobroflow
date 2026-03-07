@@ -180,6 +180,16 @@ class AIConversationMessageResponse(BaseModel):
     created_at: datetime
 
 
+class AIConversationReply(BaseModel):
+    """Response returned when a client message is posted.
+
+    Contains the saved user message and, when auto-respond is active,
+    the AI-generated agent response.
+    """
+    user_message: AIConversationMessageResponse
+    agent_response: AIConversationMessageResponse | None = None
+
+
 # ============== Training Documents ==============
 
 class AITrainingDocumentBase(BaseModel):

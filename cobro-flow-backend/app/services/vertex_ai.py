@@ -291,6 +291,154 @@ El mensaje debe ser persuasivo pero respetuoso, incentivando al deudor a regular
 
     # ── Debtor profile generation ─────────────────────────────────────
 
+    # ── Conversational response generation ───────────────────────────
+
+    def generate_conversation_response(
+        self,
+        organization_id: str,
+        conversation_history: list[dict[str, str]],
+        debtor_context: dict,
+        agent_personality: dict | None = None,
+        channel: str = "whatsapp",
+    ) -> dict[str, str | int]:
+        """Generate an AI agent reply for an ongoing debtor conversation.
+
+        Returns {"content": str, "tokens_used": int, "sentiment": str}.
+        """
+        from vertexai.generative_models import Content, Part
+
+        last_client_msg = next(
+            (m["content"] for m in reversed(conversation_history) if m["role"] == "client"),
+            "",
+        )
+        rag_context = self._retrieve_rag_context(organization_id, last_client_msg) if last_client_msg else ""
+        business_rules = self._get_business_rules(organization_id)
+        examples = self._get_few_shot_examples(organization_id, limit=3)
+
+        system_prompt = self._build_conversation_system_prompt(
+            debtor_context=debtor_context,
+            agent_personality=agent_personality,
+            channel=channel,
+            rag_context=rag_context,
+            business_rules=business_rules,
+            examples=examples,
+        )
+
+        # Build multi-turn history (all messages except the last one)
+        history: list[Content] = []
+        for msg in conversation_history[:-1]:
+            role = "user" if msg["role"] == "client" else "model"
+            history.append(Content(role=role, parts=[Part.from_text(msg["content"])]))
+
+        model = GenerativeModel(
+            model_name=settings.VERTEX_FLASH_MODEL,
+            system_instruction=system_prompt,
+            safety_settings=SAFETY_SETTINGS,
+            generation_config=GenerationConfig(
+                temperature=0.7,
+                max_output_tokens=1024,
+                top_p=0.9,
+            ),
+        )
+
+        last_msg = conversation_history[-1]["content"] if conversation_history else ""
+        chat = model.start_chat(history=history)
+        response = chat.send_message(last_msg)
+
+        tokens_used = 0
+        if response.usage_metadata:
+            tokens_used = (
+                response.usage_metadata.prompt_token_count
+                + response.usage_metadata.candidates_token_count
+            )
+
+        content_text = response.text.strip()
+        return {
+            "content": content_text,
+            "tokens_used": tokens_used,
+            "sentiment": self._classify_response_sentiment(content_text),
+        }
+
+    def _classify_response_sentiment(self, text: str) -> str:
+        """Heuristic sentiment classification to avoid extra API calls."""
+        text_lower = text.lower()
+        negative_kw = ["lamentamos", "no podemos", "no es posible", "rechaz", "desafortunadamente"]
+        positive_kw = ["acuerdo", "pagado", "confirmado", "gracias", "perfecto", "excelente", "regulariz"]
+        if any(kw in text_lower for kw in negative_kw):
+            return "negative"
+        if any(kw in text_lower for kw in positive_kw):
+            return "positive"
+        return "neutral"
+
+    def _build_conversation_system_prompt(
+        self,
+        debtor_context: dict,
+        agent_personality: dict | None,
+        channel: str,
+        rag_context: str,
+        business_rules: list[str],
+        examples: list[dict[str, str]],
+    ) -> str:
+        """Build the system prompt for conversational AI agent responses."""
+        personality_section = ""
+        if agent_personality:
+            personality_section = f"""
+## Tu Personalidad
+- Tono: {agent_personality.get('tone', 'professional')}
+- Formalidad: {agent_personality.get('formality_level', 3)}/5
+- Empatía: {agent_personality.get('empathy_level', 3)}/5
+- Idioma: {agent_personality.get('language', 'es')}
+"""
+            if agent_personality.get("system_prompt"):
+                personality_section += f"{agent_personality['system_prompt']}\n"
+            if agent_personality.get("custom_instructions"):
+                personality_section += f"Instrucciones adicionales: {agent_personality['custom_instructions']}\n"
+            if agent_personality.get("forbidden_topics"):
+                personality_section += f"Temas prohibidos: {', '.join(agent_personality['forbidden_topics'])}\n"
+
+        rules_section = ""
+        if business_rules:
+            rules_list = "\n".join(f"- {r}" for r in business_rules)
+            rules_section = f"""
+## Reglas de Negocio (OBLIGATORIAS)
+{rules_list}
+"""
+
+        rag_section = ""
+        if rag_context:
+            rag_section = f"""
+## Información de Referencia
+{rag_context}
+"""
+
+        examples_section = ""
+        if examples:
+            ex_list = "\n".join(
+                f"Cliente: {e['question']}\nAgente: {e['answer']}"
+                for e in examples
+            )
+            examples_section = f"""
+## Ejemplos de Respuesta
+{ex_list}
+"""
+
+        channel_instructions = {
+            "whatsapp": "Respuestas concisas, máximo 300 palabras. Puedes usar emojis con moderación.",
+            "email": "Respuestas formales y estructuradas. Incluye saludo y despedida.",
+            "sms": "Respuestas muy breves, máximo 160 caracteres.",
+            "ai_voice": "Lenguaje natural, oraciones cortas. Sin formato especial.",
+        }
+
+        return f"""Eres un agente de cobranzas de IA profesional. Tu objetivo es resolver la situación de deuda del cliente de manera empática y efectiva.
+
+## Deudor
+- Nombre: {debtor_context.get('name', 'Cliente')}
+- Deuda total: ${debtor_context.get('total_debt', 0):,.2f} {debtor_context.get('currency', 'ARS')}
+- Días de mora: {debtor_context.get('days_overdue', 0)}
+- Canal: {channel.upper()}
+{channel_instructions.get(channel, '')}{personality_section}{rules_section}{rag_section}{examples_section}
+IMPORTANTE: Responde SOLO como el agente, sin prefijos como "Agente:". Sé directo y útil."""
+
     def generate_debtor_profile(
         self,
         organization_id: str,

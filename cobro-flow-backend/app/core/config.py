@@ -48,6 +48,7 @@ class Settings(BaseSettings):
     CLOUD_TASKS_QUEUE_CAMPAIGNS: str = "campaign-evaluation"
     CLOUD_TASKS_QUEUE_MESSAGES: str = "message-sending"
     CLOUD_RUN_SERVICE_URL: str = ""
+    CLOUD_TASKS_SERVICE_ACCOUNT: str = ""  # e.g. my-sa@my-project.iam.gserviceaccount.com
 
     @computed_field
     @property
