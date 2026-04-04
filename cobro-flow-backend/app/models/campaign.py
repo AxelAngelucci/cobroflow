@@ -146,7 +146,7 @@ class StageAction(Base):
         nullable=False,
     )
     channel: Mapped[ChannelType] = mapped_column(
-        Enum(ChannelType, name="channel_type", create_type=True),
+        String(20),
         nullable=False,
     )
     trigger_day: Mapped[int] = mapped_column(

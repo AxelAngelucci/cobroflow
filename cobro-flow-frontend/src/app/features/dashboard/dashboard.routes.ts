@@ -46,18 +46,12 @@ export const dashboardRoutes: Routes = [
       {
         path: 'reportes',
         loadComponent: () =>
-          import('./pages/dashboard-home/dashboard-home.component').then(
-            m => m.DashboardHomeComponent
-          )
-        // TODO: Create ReportesComponent
+          import('./pages/reportes/reportes.component').then(m => m.ReportesComponent)
       },
       {
         path: 'configuracion',
         loadComponent: () =>
-          import('./pages/dashboard-home/dashboard-home.component').then(
-            m => m.DashboardHomeComponent
-          )
-        // TODO: Create ConfiguracionComponent
+          import('./pages/configuracion/configuracion.component').then(m => m.ConfiguracionComponent)
       }
     ]
   }

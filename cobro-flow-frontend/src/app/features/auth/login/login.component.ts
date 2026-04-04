@@ -121,14 +121,6 @@ import { AuthService } from '../../../core/services/auth.service';
               <a routerLink="/auth/registro" class="font-semibold text-emerald-600 hover:underline ml-1">Regístrate gratis</a>
             </p>
 
-            <!-- DEV ONLY: Skip login button -->
-            <button 
-              type="button" 
-              (click)="skipLogin()"
-              class="w-full h-10 bg-amber-100 hover:bg-amber-200 text-amber-800 text-sm font-medium rounded-lg transition-colors border border-amber-300"
-            >
-              🔧 Ir al Dashboard (Dev Mode)
-            </button>
           </form>
         </div>
       </main>
@@ -169,9 +161,4 @@ export class LoginComponent {
     }
   }
 
-  // Temporary method for development - skip login with mock user
-  protected skipLogin(): void {
-    this.authService.devLogin();
-    this.router.navigate(['/dashboard']);
-  }
 }

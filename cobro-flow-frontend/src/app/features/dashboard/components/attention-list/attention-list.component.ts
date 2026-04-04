@@ -1,9 +1,11 @@
 import { Component, ChangeDetectionStrategy, input, output, computed } from '@angular/core';
+import { LucideAngularModule } from 'lucide-angular';
 import { AttentionItem } from '../../models/dashboard.models';
 
 @Component({
   selector: 'app-attention-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [LucideAngularModule],
   template: `
     <div class="attention-card">
       <div class="card-header">
@@ -16,7 +18,7 @@ import { AttentionItem } from '../../models/dashboard.models';
       <div class="attention-items">
         @for (item of items(); track item.id; let first = $first; let last = $last) {
           <div class="attention-item" [class.has-border]="!first && !last">
-            <i [attr.data-lucide]="getIcon(item.type)" class="item-icon" [style.color]="getIconColor(item.type)"></i>
+            <lucide-icon [name]="getIcon(item.type)" class="item-icon" [style.color]="getIconColor(item.type)"></lucide-icon>
             <span class="item-text">
               <strong>{{ item.count }}</strong> {{ item.label }}
             </span>

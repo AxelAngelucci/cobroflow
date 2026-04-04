@@ -1,16 +1,17 @@
 import { Component, ChangeDetectionStrategy, input, computed } from '@angular/core';
 import { DecimalPipe } from '@angular/common';
+import { LucideAngularModule } from 'lucide-angular';
 import { ChannelEffectiveness } from '../../models/dashboard.models';
 
 @Component({
   selector: 'app-channel-effectiveness',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [DecimalPipe],
+  imports: [DecimalPipe, LucideAngularModule],
   template: `
     <div class="effectiveness-card">
       <div class="card-header">
         <div class="title-row">
-          <i data-lucide="message-square" class="title-icon"></i>
+          <lucide-icon name="message-square" class="title-icon"></lucide-icon>
           <h3 class="card-title">{{ title() }}</h3>
         </div>
       </div>

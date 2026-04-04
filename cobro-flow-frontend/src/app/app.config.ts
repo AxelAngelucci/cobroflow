@@ -3,6 +3,7 @@ import { provideRouter, withComponentInputBinding } from '@angular/router';
 import { provideClientHydration, withEventReplay } from '@angular/platform-browser';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { authInterceptor } from './core/interceptors/auth.interceptor';
+import { camelCaseInterceptor } from './core/interceptors/camel-case.interceptor';
 import {
   LucideAngularModule,
   Eye,
@@ -24,7 +25,34 @@ import {
   Rocket,
   Building2,
   X,
-  Loader2
+  Loader2,
+  LayoutDashboard,
+  Users,
+  FileText,
+  MessageSquare,
+  Send,
+  BarChart2,
+  Settings,
+  HelpCircle,
+  MessageCircle,
+  TrendingUp,
+  TrendingDown,
+  DollarSign,
+  TriangleAlert,
+  CircleCheck,
+  Target,
+  ChevronRight,
+  Plus,
+  Search,
+  Filter,
+  RefreshCw,
+  Trash2,
+  Edit2,
+  Clock,
+  User,
+  Phone,
+  Star,
+  ExternalLink
 } from 'lucide-angular';
 
 import { routes } from './app.routes';
@@ -35,7 +63,7 @@ export const appConfig: ApplicationConfig = {
     provideZoneChangeDetection({ eventCoalescing: true }),
     provideRouter(routes, withComponentInputBinding()),
     provideClientHydration(withEventReplay()),
-    provideHttpClient(withFetch(), withInterceptors([authInterceptor])),
+    provideHttpClient(withFetch(), withInterceptors([authInterceptor, camelCaseInterceptor])),
     importProvidersFrom(
       LucideAngularModule.pick({
         Eye,
@@ -57,7 +85,34 @@ export const appConfig: ApplicationConfig = {
         Rocket,
         Building2,
         X,
-        Loader2
+        Loader2,
+        LayoutDashboard,
+        Users,
+        FileText,
+        MessageSquare,
+        Send,
+        BarChart2,
+        Settings,
+        HelpCircle,
+        MessageCircle,
+        TrendingUp,
+        TrendingDown,
+        DollarSign,
+        TriangleAlert,
+        CircleCheck,
+        Target,
+        ChevronRight,
+        Plus,
+        Search,
+        Filter,
+        RefreshCw,
+        Trash2,
+        Edit2,
+        Clock,
+        User,
+        Phone,
+        Star,
+        ExternalLink
       })
     )
   ]

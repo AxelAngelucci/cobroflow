@@ -5,10 +5,10 @@ from enum import Enum as PyEnum
 from sqlalchemy import (
     String, DateTime, Integer, Boolean, Text, ForeignKey, Enum,
     Numeric, Float, Index, UniqueConstraint, CheckConstraint,
-    LargeBinary,
 )
 from sqlalchemy.dialects.postgresql import UUID, JSONB, ARRAY
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from pgvector.sqlalchemy import Vector
 
 from app.db.base import Base
 from app.models.campaign import ChannelType
@@ -695,10 +695,8 @@ class AIDocumentChunk(Base):
     metadata_: Mapped[dict | None] = mapped_column(
         "metadata", JSONB, nullable=True,
     )
-    # Stores the embedding vector as raw bytes (numpy float32 array)
-    # Used when VERTEX_LOCAL_VECTOR_STORE=true instead of Vector Search
-    embedding_vector: Mapped[bytes | None] = mapped_column(
-        LargeBinary, nullable=True,
+    embedding_vector: Mapped[list[float] | None] = mapped_column(
+        Vector(768), nullable=True,
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

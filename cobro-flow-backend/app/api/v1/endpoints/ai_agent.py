@@ -9,10 +9,13 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser
 from app.crud import ai_agent as ai_crud
+from app.crud import communication as comm_crud
 from app.db.session import get_db
 from app.models.ai_agent import AgentStatus, MessageRole, MessageSentiment
+from app.models.communication import CommunicationDirection, CommunicationStatus
 from app.models.debtor import Debtor
 from app.models.invoice import Invoice, InvoiceStatus
+from app.schemas.communication import CommunicationLogCreate
 from app.schemas.ai_agent import (
     AIAgentConfigBase, AIAgentConfigResponse, AIAgentConfigUpdate,
     AIAgentPersonalityResponse, AIAgentPersonalityCreate, AIAgentPersonalityUpdate,
@@ -32,6 +35,10 @@ from app.schemas.ai_agent import (
     AIAgentChannelConfigResponse, AIAgentChannelConfigCreate, AIAgentChannelConfigUpdate,
     AIAgentOperatingHoursResponse, AIAgentOperatingHoursCreate,
 )
+from app.core.config import settings
+from app.models.campaign import ChannelType
+from app.services.analytics_service import get_analytics_dashboard as analytics_get_dashboard
+from app.services.twilio_service import send_whatsapp_message
 from app.services.vertex_ai import VertexAIGenerator
 
 logger = logging.getLogger(__name__)
@@ -309,14 +316,96 @@ def create_message(
                 )
             except Exception:
                 logger.exception(
-                    "Vertex AI generation failed for conversation %s — returning user message only",
+                    "AI generation failed for conversation %s — returning user message only",
                     conversation_id,
                 )
+
+    # 3. Send via WhatsApp if channel matches
+    #    - agent message sent by operator → send directly
+    #    - client message with auto-respond → send AI reply
+    msg_to_send = user_msg if data.role == MessageRole.AGENT else agent_response
+    if msg_to_send and conversation.channel == ChannelType.WHATSAPP:
+        debtor = db.execute(
+            select(Debtor).where(Debtor.id == conversation.debtor_id)
+        ).scalar_one_or_none()
+        if debtor and debtor.phone:
+            send_whatsapp_message(to=debtor.phone, body=msg_to_send.content)
+
+    # 4. Create communication logs so the activity feed reflects this exchange
+    try:
+        # Log the client/agent message that arrived
+        inbound = data.role == MessageRole.CLIENT
+        comm_crud.create_communication_log(
+            db=db,
+            log_data=CommunicationLogCreate(
+                debtor_id=conversation.debtor_id,
+                channel=conversation.channel,
+                direction=CommunicationDirection.INBOUND if inbound else CommunicationDirection.OUTBOUND,
+                status=CommunicationStatus.DELIVERED if inbound else CommunicationStatus.SENT,
+                body=data.content,
+                recipient_address=None,
+            ),
+            organization_id=org_id,
+        )
+        # Log the AI agent response if one was generated
+        if agent_response:
+            comm_crud.create_communication_log(
+                db=db,
+                log_data=CommunicationLogCreate(
+                    debtor_id=conversation.debtor_id,
+                    channel=conversation.channel,
+                    direction=CommunicationDirection.OUTBOUND,
+                    status=CommunicationStatus.SENT,
+                    body=agent_response.content,
+                    recipient_address=None,
+                ),
+                organization_id=org_id,
+            )
+    except Exception:
+        logger.exception("Failed to create communication log for conversation %s", conversation_id)
 
     return AIConversationReply(
         user_message=AIConversationMessageResponse.model_validate(user_msg),
         agent_response=AIConversationMessageResponse.model_validate(agent_response) if agent_response else None,
     )
+
+
+def _mock_ai_response(debtor_context: dict, history: list[dict]) -> dict:
+    """Return a hardcoded but contextual response — no AI API calls."""
+    name = debtor_context.get("name", "Cliente")
+    debt = debtor_context.get("total_debt", 0)
+    days = debtor_context.get("days_overdue", 0)
+    currency = debtor_context.get("currency", "ARS")
+
+    last_user_msg = ""
+    for msg in reversed(history):
+        if msg.get("role") == "client":
+            last_user_msg = msg.get("content", "").lower()
+            break
+
+    if any(w in last_user_msg for w in ["pagar", "pago", "abonar", "cuota"]):
+        content = (
+            f"Hola {name}, con gusto te ayudo con tu pago. "
+            f"Tu saldo pendiente es de {currency} {debt:,.2f}. "
+            "¿Preferís realizar el pago total o acordar un plan de cuotas?"
+        )
+    elif any(w in last_user_msg for w in ["plazo", "tiempo", "prórroga", "espera"]):
+        content = (
+            f"Entiendo tu situación, {name}. Podemos evaluar una extensión de plazo. "
+            "¿Podés contarme brevemente cuál es tu situación actual?"
+        )
+    elif any(w in last_user_msg for w in ["no puedo", "no tengo", "difícil", "problema"]):
+        content = (
+            f"Gracias por comunicarte, {name}. Estamos aquí para ayudarte a encontrar una solución. "
+            "Contanos tu situación y buscamos la mejor alternativa para vos."
+        )
+    else:
+        content = (
+            f"Hola {name}, te contactamos por tu deuda de {currency} {debt:,.2f} "
+            f"con {days} días de vencimiento. ¿En qué podemos ayudarte hoy?"
+        )
+
+    return {"content": content, "sentiment": "neutral", "tokens_used": 0}
 
 
 def _generate_and_save_agent_response(
@@ -378,15 +467,18 @@ def _generate_and_save_agent_response(
             "forbidden_topics": personality_obj.forbidden_topics,
         }
 
-    # Call Vertex AI
-    generator = VertexAIGenerator(db=db)
-    result = generator.generate_conversation_response(
-        organization_id=org_id,
-        conversation_history=history,
-        debtor_context=debtor_context,
-        agent_personality=agent_personality,
-        channel=conversation.channel.value,
-    )
+    # Call AI — real or mock
+    if settings.AI_MOCK_MODE:
+        result = _mock_ai_response(debtor_context, history)
+    else:
+        generator = VertexAIGenerator(db=db)
+        result = generator.generate_conversation_response(
+            organization_id=org_id,
+            conversation_history=history,
+            debtor_context=debtor_context,
+            agent_personality=agent_personality,
+            channel=conversation.channel.value,
+        )
 
     # Map heuristic sentiment to enum
     sentiment_map = {
@@ -692,7 +784,7 @@ def get_analytics_dashboard(
     date_to: datetime | None = Query(None),
 ) -> AIAgentDashboardKpis:
     org_id = _require_org(current_user)
-    kpis = ai_crud.get_analytics_dashboard(db, org_id, date_from=date_from, date_to=date_to)
+    kpis = analytics_get_dashboard(db, org_id, date_from=date_from, date_to=date_to)
     return AIAgentDashboardKpis(**kpis)
 
 

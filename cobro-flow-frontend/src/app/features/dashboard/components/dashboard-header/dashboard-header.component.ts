@@ -1,4 +1,5 @@
 import { Component, ChangeDetectionStrategy, input, output, signal } from '@angular/core';
+import { LucideAngularModule } from 'lucide-angular';
 
 interface DateFilterOption {
   id: string;
@@ -8,6 +9,7 @@ interface DateFilterOption {
 @Component({
   selector: 'app-dashboard-header',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [LucideAngularModule],
   template: `
     <header class="dashboard-header">
       <div class="header-left">
@@ -28,10 +30,10 @@ interface DateFilterOption {
           }
         </div>
         <button class="refresh-btn" title="Actualizar datos">
-          <i data-lucide="refresh-cw" class="refresh-icon"></i>
+          <lucide-icon name="refresh-cw" class="refresh-icon"></lucide-icon>
         </button>
         <button class="cta-btn" (click)="onNewCampaignClick.emit()">
-          <i data-lucide="plus" class="btn-icon"></i>
+          <lucide-icon name="plus" class="btn-icon"></lucide-icon>
           Nueva Campaña
         </button>
       </div>

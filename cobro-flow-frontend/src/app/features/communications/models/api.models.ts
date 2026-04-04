@@ -5,9 +5,11 @@ export interface PaginatedResponse<T> {
   size: number;
 }
 
+// NOTE: all snake_case fields are converted to camelCase by the camelCaseInterceptor
+
 export interface MessageTemplateApiResponse {
   id: string;
-  organization_id: string;
+  organizationId: string;
   name: string;
   channel: 'whatsapp' | 'email' | 'sms' | 'call' | 'ai_voice';
   subject: string | null;
@@ -15,77 +17,78 @@ export interface MessageTemplateApiResponse {
   variables: string[] | null;
   status: 'draft' | 'active' | 'archived';
   language: string;
-  times_used: number;
-  open_rate: number | null;
-  click_rate: number | null;
-  reply_rate: number | null;
-  conversion_rate: number | null;
-  created_at: string;
-  updated_at: string;
+  timesUsed: number;
+  openRate: number | null;
+  clickRate: number | null;
+  replyRate: number | null;
+  conversionRate: number | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface WorkflowStepApiResponse {
   id: string;
-  workflow_id: string;
-  step_order: number;
+  workflowId: string;
+  stepOrder: number;
   name: string;
   channel: 'whatsapp' | 'email' | 'sms' | 'call' | 'ai_voice';
-  template_id: string | null;
-  delay_days: number;
-  delay_hours: number;
-  send_time: string | null;
-  condition_type: 'none' | 'previous_not_opened' | 'previous_not_replied' | 'previous_bounced' | 'invoice_still_unpaid';
-  fallback_channel: string | null;
-  ai_enabled: boolean;
-  ai_instructions: string | null;
+  templateId: string | null;
+  delayDays: number;
+  delayHours: number;
+  sendTime: string | null;
+  conditionType: 'none' | 'previousNotOpened' | 'previousNotReplied' | 'previousBounced' | 'invoiceStillUnpaid';
+  fallbackChannel: string | null;
+  aiEnabled: boolean;
+  aiInstructions: string | null;
   config: Record<string, unknown> | null;
-  created_at: string;
+  createdAt: string;
 }
 
 export interface CollectionWorkflowApiResponse {
   id: string;
-  organization_id: string;
+  organizationId: string;
   name: string;
   description: string | null;
   status: 'draft' | 'active' | 'paused' | 'archived';
-  trigger_description: string | null;
+  triggerDescription: string | null;
   settings: Record<string, unknown> | null;
-  total_executions: number;
-  success_rate: number | null;
+  totalExecutions: number;
+  successRate: number | null;
   steps: WorkflowStepApiResponse[];
-  created_at: string;
-  updated_at: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface CommunicationLogApiResponse {
   id: string;
-  organization_id: string;
-  debtor_id: string;
-  campaign_id: string | null;
+  organizationId: string;
+  debtorId: string;
+  campaignId: string | null;
   channel: 'whatsapp' | 'email' | 'sms' | 'call' | 'ai_voice';
   direction: 'outbound' | 'inbound';
   status: string;
   subject: string | null;
-  recipient_address: string | null;
-  sent_at: string | null;
-  created_at: string;
+  body: string | null;
+  recipientAddress: string | null;
+  sentAt: string | null;
+  createdAt: string;
 }
 
 export interface CommunicationHubSummaryApiResponse {
   kpis: {
-    sent_today: number;
-    sent_today_change: number;
-    open_rate: number;
-    open_rate_change: number;
-    reply_rate: number;
-    reply_rate_change: number;
-    payments_post_contact: number;
-    payments_post_contact_change: number;
+    sentToday: number;
+    sentTodayChange: number;
+    openRate: number;
+    openRateChange: number;
+    replyRate: number;
+    replyRateChange: number;
+    paymentsPostContact: number;
+    paymentsPostContactChange: number;
   };
   channels: {
     channel: 'whatsapp' | 'email' | 'sms' | 'call' | 'ai_voice';
     status: string;
-    sent_today: number;
+    sentToday: number;
     description: string;
   }[];
 }

@@ -1,11 +1,12 @@
 import { Component, ChangeDetectionStrategy, input, output } from '@angular/core';
 import { RouterLink, RouterLinkActive } from '@angular/router';
+import { LucideAngularModule } from 'lucide-angular';
 import { NavItem, UserProfile, PlanInfo } from '../../models/dashboard.models';
 
 @Component({
   selector: 'app-sidebar',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [RouterLink, RouterLinkActive],
+  imports: [RouterLink, RouterLinkActive, LucideAngularModule],
   template: `
     <aside class="sidebar">
       <div class="sidebar-top">
@@ -30,7 +31,7 @@ import { NavItem, UserProfile, PlanInfo } from '../../models/dashboard.models';
               [routerLinkActiveOptions]="{ exact: item.id === 'dashboard' }"
               class="nav-item"
             >
-              <i [attr.data-lucide]="item.icon" class="nav-icon"></i>
+              <lucide-icon [name]="item.icon" class="nav-icon"></lucide-icon>
               <span class="nav-label">{{ item.label }}</span>
               @if (item.badge) {
                 <span class="nav-badge">{{ item.badge }}</span>
@@ -43,7 +44,7 @@ import { NavItem, UserProfile, PlanInfo } from '../../models/dashboard.models';
       <div class="sidebar-bottom">
         <!-- Help Button -->
         <button class="help-btn" (click)="onHelpClick.emit()">
-          <i data-lucide="help-circle" class="help-icon"></i>
+          <lucide-icon name="help-circle" class="help-icon"></lucide-icon>
           <span>Ayuda y Soporte</span>
         </button>
 

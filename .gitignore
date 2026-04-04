@@ -1,12 +1,20 @@
-# Python
+# =============================================
+# CobroFlow — Monorepo .gitignore
+# =============================================
+
+# ---- Python / Backend ----
 __pycache__/
 *.py[cod]
 *$py.class
 *.so
+.Python
 build/
 develop-eggs/
+dist/
+downloads/
 eggs/
 .eggs/
+lib/
 lib64/
 parts/
 sdist/
@@ -15,42 +23,63 @@ wheels/
 *.egg-info/
 .installed.cfg
 *.egg
+MANIFEST
 
-# Virtual Environment
+# Virtual environments
 venv/
 env/
 ENV/
-
-# Environment variables
-.env
-.env.local
-.env.*.local
-!.env.example
-
-# Database
-*.db
-*.sqlite3
+.venv/
 
 # Testing
 .pytest_cache/
 .coverage
 htmlcov/
+.tox/
+nosetests.xml
+coverage.xml
+*.cover
 
-# Logs
-*.log
+# Alembic (keep migrations, ignore pycache inside)
+# alembic/versions are tracked — do NOT ignore them
 
-# Node
+# ---- Node / Frontend ----
 node_modules/
-npm-debug.log
-yarn-error.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+.pnpm-debug.log*
 
-# Angular
-/cobro-flow-frontend/dist
-/cobro-flow-frontend/.angular/cache
-/cobro-flow-frontend/out-tsc
-/cobro-flow-frontend/bazel-out
+# Angular build artifacts
+cobro-flow-frontend/dist/
+cobro-flow-frontend/.angular/
+cobro-flow-frontend/out-tsc/
+cobro-flow-frontend/bazel-out/
+cobro-flow-frontend/coverage/
 
-# IDE
+# ---- Environment variables ----
+.env
+.env.local
+.env.*.local
+.env.production
+!.env.example
+
+# ---- Database ----
+*.db
+*.sqlite3
+
+# ---- Logs ----
+*.log
+logs/
+
+# ---- GCP / Cloud ----
+gcloud-service-key.json
+*-service-account.json
+*.json.key
+service_account*.json
+
+# ---- IDE ----
 .idea/
 .vscode/*
 !.vscode/settings.json
@@ -60,17 +89,33 @@ yarn-error.log
 !.vscode/mcp.json
 *.swp
 *.swo
+*.sublime-workspace
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+.history/
 
-# OS
+# ---- OS ----
 .DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
 Thumbs.db
+desktop.ini
 
-# Pencil design files (binary)
+# ---- Pencil design files (binary, no diff) ----
 *.pen
 
-# Temp files
+# ---- Temp / scratch ----
 tmp_*.json
 tmp_*.txt
+*.tmp
+scratch/
+sandbox/
 
-# Claude
+# ---- Claude Code ----
 .claude/

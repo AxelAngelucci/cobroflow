@@ -1,15 +1,17 @@
 import { Component, ChangeDetectionStrategy, input } from '@angular/core';
+import { LucideAngularModule } from 'lucide-angular';
 import { KpiData } from '../../models/dashboard.models';
 
 @Component({
   selector: 'app-kpi-card',
   changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [LucideAngularModule],
   template: `
     <div class="kpi-card">
       <div class="kpi-header">
         <span class="kpi-label">{{ data().label }}</span>
         <div class="kpi-icon-bg" [style.background-color]="data().iconBgColor">
-          <i [attr.data-lucide]="data().icon" class="kpi-icon" [style.color]="data().iconColor"></i>
+          <lucide-icon [name]="data().icon" class="kpi-icon" [style.color]="data().iconColor"></lucide-icon>
         </div>
       </div>
       <span class="kpi-value" [style.color]="data().valueColor || '#1F2937'">{{ data().value }}</span>
@@ -21,7 +23,7 @@ import { KpiData } from '../../models/dashboard.models';
         }
         @if (data().trendValue) {
           <span class="kpi-trend" [style.color]="data().trendColor || '#10B981'">
-            <i [attr.data-lucide]="data().trendIcon || 'trending-up'" class="trend-icon" [style.color]="data().trendColor || '#10B981'"></i>
+            <lucide-icon [name]="data().trendIcon || 'trending-up'" class="trend-icon" [style.color]="data().trendColor || '#10B981'"></lucide-icon>
             {{ data().trendValue }}
           </span>
         }

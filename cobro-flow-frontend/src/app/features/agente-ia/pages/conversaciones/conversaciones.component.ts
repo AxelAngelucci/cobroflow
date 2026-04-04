@@ -1,11 +1,14 @@
 import { Component, ChangeDetectionStrategy, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
+import { HttpClient } from '@angular/common/http';
+import { firstValueFrom } from 'rxjs';
 import { AgenteIaService } from '../../services/agente-ia.service';
 import {
   CONVERSATION_STATUS_LABELS, CHANNEL_LABELS, SENTIMENT_LABELS,
   MESSAGE_ROLE_LABELS,
 } from '../../models/agente-ia.models';
+import { environment } from '../../../../../environments/environment';
 
 @Component({
   selector: 'app-conversaciones',
@@ -31,8 +34,8 @@ import {
         </div>
       </header>
 
-      <!-- Two Column Layout -->
-      <div class="conv-grid">
+      <!-- Two/Three Column Layout -->
+      <div class="conv-grid" [style.grid-template-columns]="service.selectedConversation() ? '280px 1fr 300px' : '320px 1fr'">
         <!-- Left: Conversation List -->
         <div class="conv-list-panel">
           <div class="conv-list-header">
@@ -135,6 +138,60 @@ import {
             </div>
           }
         </div>
+
+        <!-- Right: Client Panel -->
+        @if (service.selectedConversation() && debtor()) {
+          <div class="client-panel">
+            <!-- Header -->
+            <div class="client-panel-header">
+              <span>Información del Cliente</span>
+              <button class="btn-close-panel" (click)="closeClientPanel()">✕</button>
+            </div>
+
+            <!-- Avatar + Name -->
+            <div class="client-identity">
+              <div class="client-avatar">{{ getDebtorInitials() }}</div>
+              <div class="client-name-block">
+                <span class="client-name">{{ debtor().name }}</span>
+                <span class="client-company">{{ debtor().tax_id || '' }}</span>
+              </div>
+            </div>
+
+            <!-- Debt total -->
+            <div class="client-debt-card">
+              <span class="debt-label">Deuda Total</span>
+              <span class="debt-amount">{{ formatCurrency(getTotalDebt()) }}</span>
+              <span class="debt-badge">{{ getOverdueDays() }} días vencida</span>
+            </div>
+
+            <!-- Invoices -->
+            <div class="client-section">
+              <span class="section-title">Facturas Relacionadas</span>
+              @for (inv of debtorInvoices(); track inv.id) {
+                <div class="invoice-row">
+                  <span class="invoice-num">{{ inv.invoice_number || inv.id?.slice(0,8) }}</span>
+                  <span class="invoice-amount">{{ formatCurrency(inv.amount || 0) }}</span>
+                  <span [class]="getInvoiceStatusClass(inv.status)">{{ inv.status }}</span>
+                </div>
+              }
+              @if (debtorInvoices().length === 0) {
+                <span class="no-data">Sin facturas</span>
+              }
+            </div>
+
+            <!-- Quick actions -->
+            <div class="client-actions">
+              <button class="btn-action-green">
+                <i class="lucide-credit-card"></i>
+                Registrar Pago
+              </button>
+              <button class="btn-action-outline">
+                <i class="lucide-handshake"></i>
+                Nueva Promesa
+              </button>
+            </div>
+          </div>
+        }
       </div>
     </div>
   `,
@@ -218,11 +275,45 @@ import {
     .empty-chat { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; color: #9CA3AF; }
     .empty-icon { font-size: 48px; }
     .empty-state { padding: 32px; text-align: center; color: #9CA3AF; font-size: 14px; }
+
+    /* 3-column grid */
+    .conv-grid { transition: grid-template-columns 0.2s ease; }
+
+    /* Client panel */
+    .client-panel { background: white; border-radius: 12px; border: 1px solid rgba(0,0,0,0.06); display: flex; flex-direction: column; overflow-y: auto; }
+    .client-panel-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid #E5E7EB; font-size: 13px; font-weight: 600; color: #1F2937; }
+    .btn-close-panel { background: none; border: none; cursor: pointer; color: #9CA3AF; font-size: 16px; }
+    .client-identity { display: flex; align-items: center; gap: 12px; padding: 20px; border-bottom: 1px solid #F3F4F6; }
+    .client-avatar { width: 48px; height: 48px; border-radius: 24px; background: #DBEAFE; color: #1E40AF; font-size: 16px; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .client-name-block { display: flex; flex-direction: column; gap: 2px; }
+    .client-name { font-size: 14px; font-weight: 600; color: #1F2937; }
+    .client-company { font-size: 12px; color: #6B7280; }
+    .client-debt-card { margin: 16px; padding: 16px; background: #F9FAFB; border-radius: 10px; display: flex; flex-direction: column; gap: 4px; }
+    .debt-label { font-size: 12px; color: #6B7280; }
+    .debt-amount { font-size: 24px; font-weight: 700; color: #1F2937; }
+    .debt-badge { align-self: flex-start; padding: 2px 10px; background: #FEE2E2; color: #DC2626; border-radius: 12px; font-size: 11px; font-weight: 600; }
+    .client-section { padding: 0 16px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .section-title { font-size: 12px; font-weight: 600; color: #6B7280; text-transform: uppercase; letter-spacing: 0.05em; padding-top: 8px; }
+    .invoice-row { display: flex; align-items: center; gap: 8px; padding: 8px; background: #F9FAFB; border-radius: 6px; }
+    .invoice-num { font-size: 11px; color: #6B7280; flex: 1; }
+    .invoice-amount { font-size: 12px; font-weight: 600; color: #1F2937; }
+    .invoice-status { font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; }
+    .invoice-status-overdue { background: #FEE2E2; color: #DC2626; }
+    .invoice-status-pending { background: #FEF3C7; color: #D97706; }
+    .invoice-status-paid { background: #D1FAE5; color: #059669; }
+    .no-data { font-size: 12px; color: #9CA3AF; text-align: center; padding: 8px; }
+    .client-actions { padding: 16px; display: flex; flex-direction: column; gap: 8px; margin-top: auto; border-top: 1px solid #F3F4F6; }
+    .btn-action-green { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: #059669; color: white; border: none; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn-action-green:hover { background: #047857; }
+    .btn-action-outline { display: flex; align-items: center; justify-content: center; gap: 8px; padding: 10px; background: white; color: #1E40AF; border: 1.5px solid #1E40AF; border-radius: 8px; font-size: 13px; font-weight: 600; cursor: pointer; }
+    .btn-action-outline:hover { background: #EFF6FF; }
   `]
 })
 export class ConversacionesComponent implements OnInit {
   protected readonly service = inject(AgenteIaService);
   private readonly router = inject(Router);
+  private readonly http = inject(HttpClient);
+  private readonly apiUrl = environment.apiUrl;
 
   readonly CONVERSATION_STATUS_LABELS = CONVERSATION_STATUS_LABELS;
   readonly CHANNEL_LABELS = CHANNEL_LABELS;
@@ -230,6 +321,8 @@ export class ConversacionesComponent implements OnInit {
   readonly MESSAGE_ROLE_LABELS = MESSAGE_ROLE_LABELS;
 
   newMessage = '';
+  debtor = signal<any>(null);
+  debtorInvoices = signal<any[]>([]);
 
   ngOnInit(): void {
     this.service.loadConversations({ page: 1, size: 50 });
@@ -238,6 +331,53 @@ export class ConversacionesComponent implements OnInit {
   async selectConversation(id: string): Promise<void> {
     await this.service.loadConversation(id);
     await this.service.loadMessages(id);
+    this.debtor.set(null);
+    this.debtorInvoices.set([]);
+    const conv = this.service.selectedConversation();
+    if (conv?.debtorId) {
+      try {
+        const [debtor, invoicesResp] = await Promise.all([
+          firstValueFrom(this.http.get<any>(`${this.apiUrl}/clients/${conv.debtorId}`)),
+          firstValueFrom(this.http.get<any>(`${this.apiUrl}/clients/${conv.debtorId}/invoices`)),
+        ]);
+        this.debtor.set(debtor);
+        this.debtorInvoices.set(invoicesResp?.items || invoicesResp || []);
+      } catch {
+        // debtor not found, panel stays hidden
+      }
+    }
+  }
+
+  closeClientPanel(): void {
+    this.debtor.set(null);
+    this.debtorInvoices.set([]);
+  }
+
+  getDebtorInitials(): string {
+    const name = this.debtor()?.name || '';
+    return name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase() || 'DE';
+  }
+
+  getTotalDebt(): number {
+    return this.debtorInvoices().reduce((sum: number, inv: any) => {
+      if (inv.status !== 'paid') return sum + (inv.amount || 0);
+      return sum;
+    }, 0);
+  }
+
+  getOverdueDays(): number {
+    const oldest = this.debtorInvoices()
+      .filter((inv: any) => inv.status === 'overdue' && inv.due_date)
+      .map((inv: any) => new Date(inv.due_date).getTime());
+    if (!oldest.length) return 0;
+    const diff = Date.now() - Math.min(...oldest);
+    return Math.floor(diff / 86400000);
+  }
+
+  getInvoiceStatusClass(status: string): string {
+    if (status === 'overdue') return 'invoice-status invoice-status-overdue';
+    if (status === 'paid') return 'invoice-status invoice-status-paid';
+    return 'invoice-status invoice-status-pending';
   }
 
   async sendMessage(): Promise<void> {

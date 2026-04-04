@@ -83,7 +83,7 @@ class MessageTemplate(Base):
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     channel: Mapped[ChannelType] = mapped_column(
-        Enum(ChannelType, name="channel_type", create_type=False), nullable=False,
+        Enum(ChannelType, name="channel_type", create_type=False, values_callable=lambda e: [x.value for x in e]), nullable=False,
     )
     subject: Mapped[str | None] = mapped_column(String(500), nullable=True)
     body: Mapped[str] = mapped_column(Text, nullable=False)
@@ -193,7 +193,7 @@ class WorkflowStep(Base):
     step_order: Mapped[int] = mapped_column(Integer, nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
     channel: Mapped[ChannelType] = mapped_column(
-        Enum(ChannelType, name="channel_type", create_type=False), nullable=False,
+        Enum(ChannelType, name="channel_type", create_type=False, values_callable=lambda e: [x.value for x in e]), nullable=False,
     )
     template_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("message_templates.id"), nullable=True,
@@ -273,7 +273,7 @@ class CommunicationLog(Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True,
     )
     channel: Mapped[ChannelType] = mapped_column(
-        Enum(ChannelType, name="channel_type", create_type=False), nullable=False,
+        Enum(ChannelType, name="channel_type", create_type=False, values_callable=lambda e: [x.value for x in e]), nullable=False,
     )
     direction: Mapped[CommunicationDirection] = mapped_column(
         Enum(CommunicationDirection, name="communication_direction", create_type=True),

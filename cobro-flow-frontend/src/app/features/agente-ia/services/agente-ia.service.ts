@@ -177,8 +177,10 @@ export class AgenteIaService {
 
   async sendMessage(conversationId: string, data: any): Promise<void> {
     try {
-      const msg = await firstValueFrom(this.api.createMessage(conversationId, data));
-      this._messages.update(list => [...list, msg]);
+      const reply = await firstValueFrom(this.api.createMessage(conversationId, data));
+      // createMessage returns AIConversationReply { userMessage, agentResponse }
+      const toAdd = [reply.userMessage, reply.agentResponse].filter(Boolean);
+      this._messages.update(list => [...list, ...toAdd]);
     } catch {
       this._error.set('Error al enviar mensaje');
     }

@@ -9,60 +9,63 @@ export interface PaginatedResponse<T> {
 }
 
 // Client/Debtor from API
+// NOTE: all snake_case fields are converted to camelCase by the camelCaseInterceptor
 export interface ClientApiResponse {
   id: string;
-  organization_id: string;
+  organizationId: string;
   name: string;
   email: string | null;
   phone: string | null;
-  tax_id: string | null;
-  erp_id: string | null;
-  risk_score: number | null;
+  taxId: string | null;
+  erpId: string | null;
+  riskScore: number | null;
   tags: string[] | null;
-  ai_profile_summary: string | null;
-  created_at: string;
+  aiProfileSummary: string | null;
+  createdAt: string;
   // Aggregated stats from backend
-  total_debt: string | null;
-  overdue_amount: string | null;
-  total_invoices: number | null;
-  overdue_invoices: number | null;
+  totalDebt: string | null;
+  overdueAmount: string | null;
+  totalInvoices: number | null;
+  overdueInvoices: number | null;
   status: 'current' | 'at_risk' | 'overdue' | 'critical' | null;
 }
 
 // Invoice from API
+// NOTE: all snake_case fields are converted to camelCase by the camelCaseInterceptor
 export interface InvoiceApiResponse {
   id: string;
-  organization_id: string;
-  debtor_id: string;
-  invoice_number: string;
-  issue_date: string;
-  due_date: string;
+  organizationId: string;
+  debtorId: string;
+  invoiceNumber: string;
+  issueDate: string;
+  dueDate: string;
   amount: string; // Decimal comes as string
   balance: string; // Decimal comes as string
   currency: string;
   status: 'pending' | 'paid' | 'overdue' | 'cancelled' | 'disputed';
-  file_url: string | null;
-  erp_metadata: Record<string, unknown> | null;
+  fileUrl: string | null;
+  erpMetadata: Record<string, unknown> | null;
 }
 
 // Payment from API
+// NOTE: all snake_case fields are converted to camelCase by the camelCaseInterceptor
 export interface PaymentApiResponse {
   id: string;
-  organization_id: string;
-  debtor_id: string;
+  organizationId: string;
+  debtorId: string;
   amount: string; // Decimal comes as string
-  payment_date: string;
+  paymentDate: string;
   method: string | null;
-  reference_number: string | null;
-  proof_file_url: string | null;
+  referenceNumber: string | null;
+  proofFileUrl: string | null;
 }
 
 // Payment allocation from API
 export interface PaymentAllocationApiResponse {
   id: string;
-  payment_id: string;
-  invoice_id: string;
-  amount_allocated: string;
+  paymentId: string;
+  invoiceId: string;
+  amountAllocated: string;
 }
 
 // Request types for creating/updating

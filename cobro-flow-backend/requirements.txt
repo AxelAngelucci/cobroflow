@@ -11,6 +11,7 @@ email-validator>=2.1.0
 sqlalchemy>=2.0.0
 psycopg2-binary>=2.9.9
 alembic>=1.13.0
+pgvector>=0.3.0
 
 # Security
 python-jose[cryptography]>=3.3.0
@@ -33,3 +34,8 @@ numpy>=1.26.0
 
 # Development
 python-dotenv>=1.0.0
+
+# Communication
+twilio>=9.10.3
+sendgrid>=6.11.0
+google-generativeai>=0.8.0

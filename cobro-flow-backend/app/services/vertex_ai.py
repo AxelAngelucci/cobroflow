@@ -1,18 +1,15 @@
-"""Vertex AI Gemini generation service with RAG context retrieval."""
+"""Gemini AI generation service with RAG context retrieval.
+
+Uses Google AI Studio (google-generativeai) instead of Vertex AI.
+"""
 
 from __future__ import annotations
 
 import logging
 from uuid import UUID
 
-import vertexai
-from vertexai.generative_models import (
-    GenerativeModel,
-    GenerationConfig,
-    HarmCategory,
-    HarmBlockThreshold,
-    SafetySetting,
-)
+import google.generativeai as genai
+from google.generativeai.types import HarmCategory, HarmBlockThreshold
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -22,58 +19,21 @@ from app.services.vector_search import VectorSearchService
 
 logger = logging.getLogger(__name__)
 
-# ── Safety settings applied to all Gemini calls ──────────────────────
-SAFETY_SETTINGS = [
-    SafetySetting(
-        category=HarmCategory.HARM_CATEGORY_HARASSMENT,
-        threshold=HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-    ),
-    SafetySetting(
-        category=HarmCategory.HARM_CATEGORY_HATE_SPEECH,
-        threshold=HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-    ),
-    SafetySetting(
-        category=HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
-        threshold=HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-    ),
-    SafetySetting(
-        category=HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
-        threshold=HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
-    ),
-]
+SAFETY_SETTINGS = {
+    HarmCategory.HARM_CATEGORY_HARASSMENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    HarmCategory.HARM_CATEGORY_HATE_SPEECH: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+    HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE,
+}
 
 
 class VertexAIGenerator:
-    """Generates AI messages using Vertex AI Gemini models with RAG context."""
+    """Generates AI messages using Gemini models with RAG context."""
 
     def __init__(self, db: Session) -> None:
         self._db = db
         self._vector_service = VectorSearchService(db=db)
-
-        vertexai.init(
-            project=settings.GCP_PROJECT_ID,
-            location=settings.GCP_LOCATION,
-        )
-
-        self._flash_model = GenerativeModel(
-            model_name=settings.VERTEX_FLASH_MODEL,
-            safety_settings=SAFETY_SETTINGS,
-            generation_config=GenerationConfig(
-                temperature=0.7,
-                max_output_tokens=1024,
-                top_p=0.9,
-            ),
-        )
-
-        self._pro_model = GenerativeModel(
-            model_name=settings.VERTEX_PRO_MODEL,
-            safety_settings=SAFETY_SETTINGS,
-            generation_config=GenerationConfig(
-                temperature=0.4,
-                max_output_tokens=2048,
-                top_p=0.95,
-            ),
-        )
+        genai.configure(api_key=settings.GEMINI_API_KEY)
 
     # ── RAG context retrieval ─────────────────────────────────────────
 
@@ -101,7 +61,6 @@ class VertexAIGenerator:
         )
         chunks = list(self._db.execute(stmt).scalars().all())
 
-        # Reorder by search score
         id_to_chunk = {c.vertex_datapoint_id: c for c in chunks}
         ordered_texts: list[str] = []
         for r in results:
@@ -155,7 +114,6 @@ class VertexAIGenerator:
 
         Returns {"message": str, "subject": str | None, "tokens_used": int}.
         """
-        # Build RAG query from debtor context
         rag_query = (
             f"cobranza deuda {debtor_context.get('name', '')} "
             f"monto {debtor_context.get('total_debt', '')} "
@@ -165,7 +123,6 @@ class VertexAIGenerator:
         business_rules = self._get_business_rules(organization_id)
         examples = self._get_few_shot_examples(organization_id, limit=3)
 
-        # Build structured prompt
         prompt = self._build_campaign_prompt(
             campaign_context=campaign_context,
             debtor_context=debtor_context,
@@ -176,7 +133,17 @@ class VertexAIGenerator:
             examples=examples,
         )
 
-        response = self._flash_model.generate_content(prompt)
+        model = genai.GenerativeModel(
+            model_name="gemini-2.0-flash",
+            safety_settings=SAFETY_SETTINGS,
+            generation_config=genai.GenerationConfig(
+                temperature=0.7,
+                max_output_tokens=1024,
+                top_p=0.9,
+            ),
+        )
+
+        response = model.generate_content(prompt)
 
         tokens_used = 0
         if response.usage_metadata:
@@ -187,7 +154,6 @@ class VertexAIGenerator:
 
         message_text = response.text.strip()
 
-        # For email, try to split subject from body
         subject = None
         if channel == "email" and "\n" in message_text:
             first_line = message_text.split("\n", 1)[0]
@@ -291,6 +257,52 @@ El mensaje debe ser persuasivo pero respetuoso, incentivando al deudor a regular
 
     # ── Debtor profile generation ─────────────────────────────────────
 
+    def generate_debtor_profile(
+        self,
+        organization_id: str,
+        debtor_data: dict,
+        interaction_history: list[dict] | None = None,
+    ) -> str:
+        """Generate an AI profile summary for a debtor using Gemini Pro."""
+        history_section = ""
+        if interaction_history:
+            history_lines = []
+            for h in interaction_history[-10:]:
+                history_lines.append(
+                    f"- [{h.get('date', 'N/A')}] {h.get('channel', '')}: {h.get('summary', '')}"
+                )
+            history_section = f"""
+## Historial de Interacciones
+{chr(10).join(history_lines)}
+"""
+
+        prompt = f"""Analiza el siguiente perfil de deudor y genera un resumen ejecutivo
+en español de máximo 200 palabras. Incluye patrones de comportamiento,
+nivel de riesgo y recomendaciones de estrategia de cobranza.
+
+## Datos del Deudor
+- Nombre: {debtor_data.get('name', 'N/A')}
+- Score de riesgo: {debtor_data.get('risk_score', 'N/A')}/100
+- Deuda total: ${debtor_data.get('total_debt', 0):,.2f}
+- Facturas pendientes: {debtor_data.get('pending_invoices', 0)}
+- Tags: {', '.join(debtor_data.get('tags', []))}
+{history_section}
+Genera ÚNICAMENTE el resumen analítico sin encabezados ni meta-comentarios.
+"""
+
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-pro",
+            safety_settings=SAFETY_SETTINGS,
+            generation_config=genai.GenerationConfig(
+                temperature=0.4,
+                max_output_tokens=2048,
+                top_p=0.95,
+            ),
+        )
+
+        response = model.generate_content(prompt)
+        return response.text.strip()
+
     # ── Conversational response generation ───────────────────────────
 
     def generate_conversation_response(
@@ -305,8 +317,6 @@ El mensaje debe ser persuasivo pero respetuoso, incentivando al deudor a regular
 
         Returns {"content": str, "tokens_used": int, "sentiment": str}.
         """
-        from vertexai.generative_models import Content, Part
-
         last_client_msg = next(
             (m["content"] for m in reversed(conversation_history) if m["role"] == "client"),
             "",
@@ -324,21 +334,20 @@ El mensaje debe ser persuasivo pero respetuoso, incentivando al deudor a regular
             examples=examples,
         )
 
-        # Build multi-turn history (all messages except the last one)
-        history: list[Content] = []
+        history = []
         for msg in conversation_history[:-1]:
             role = "user" if msg["role"] == "client" else "model"
-            history.append(Content(role=role, parts=[Part.from_text(msg["content"])]))
+            history.append({"role": role, "parts": [msg["content"]]})
 
-        model = GenerativeModel(
-            model_name=settings.VERTEX_FLASH_MODEL,
-            system_instruction=system_prompt,
+        model = genai.GenerativeModel(
+            model_name="gemini-2.0-flash",
             safety_settings=SAFETY_SETTINGS,
-            generation_config=GenerationConfig(
+            generation_config=genai.GenerationConfig(
                 temperature=0.7,
                 max_output_tokens=1024,
                 top_p=0.9,
             ),
+            system_instruction=system_prompt,
         )
 
         last_msg = conversation_history[-1]["content"] if conversation_history else ""
@@ -438,39 +447,3 @@ El mensaje debe ser persuasivo pero respetuoso, incentivando al deudor a regular
 - Canal: {channel.upper()}
 {channel_instructions.get(channel, '')}{personality_section}{rules_section}{rag_section}{examples_section}
 IMPORTANTE: Responde SOLO como el agente, sin prefijos como "Agente:". Sé directo y útil."""
-
-    def generate_debtor_profile(
-        self,
-        organization_id: str,
-        debtor_data: dict,
-        interaction_history: list[dict] | None = None,
-    ) -> str:
-        """Generate an AI profile summary for a debtor using Gemini Pro."""
-        history_section = ""
-        if interaction_history:
-            history_lines = []
-            for h in interaction_history[-10:]:  # Last 10 interactions
-                history_lines.append(
-                    f"- [{h.get('date', 'N/A')}] {h.get('channel', '')}: {h.get('summary', '')}"
-                )
-            history_section = f"""
-## Historial de Interacciones
-{chr(10).join(history_lines)}
-"""
-
-        prompt = f"""Analiza el siguiente perfil de deudor y genera un resumen ejecutivo
-en español de máximo 200 palabras. Incluye patrones de comportamiento,
-nivel de riesgo y recomendaciones de estrategia de cobranza.
-
-## Datos del Deudor
-- Nombre: {debtor_data.get('name', 'N/A')}
-- Score de riesgo: {debtor_data.get('risk_score', 'N/A')}/100
-- Deuda total: ${debtor_data.get('total_debt', 0):,.2f}
-- Facturas pendientes: {debtor_data.get('pending_invoices', 0)}
-- Tags: {', '.join(debtor_data.get('tags', []))}
-{history_section}
-Genera ÚNICAMENTE el resumen analítico sin encabezados ni meta-comentarios.
-"""
-
-        response = self._pro_model.generate_content(prompt)
-        return response.text.strip()

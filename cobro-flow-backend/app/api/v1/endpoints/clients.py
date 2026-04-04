@@ -12,6 +12,8 @@ from app.api.deps import CurrentUser
 from app.crud import debtor as debtor_crud
 from app.crud import invoice as invoice_crud
 from app.crud import payment as payment_crud
+from app.services import debtor_service
+from app.services import payment_service
 from app.db.session import get_db
 from app.models.invoice import InvoiceStatus
 from app.schemas.debtor import (
@@ -196,7 +198,7 @@ def get_clients(
         )
     
     skip = (page - 1) * size
-    debtors, total = debtor_crud.get_debtors_with_stats(
+    debtors, total = debtor_service.get_debtors_enriched(
         db, current_user.organization_id, skip=skip, limit=size, search=search
     )
     
@@ -448,8 +450,8 @@ def create_payment(
     
     # Override debtor_id with path parameter
     payment_data.debtor_id = client_id
-    
-    payment = payment_crud.create_payment(db, payment_data, current_user.organization_id)
+
+    payment = payment_service.apply_payment(db, payment_data, current_user.organization_id)
     return payment
 
 

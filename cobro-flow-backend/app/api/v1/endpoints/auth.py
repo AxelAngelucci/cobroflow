@@ -4,7 +4,8 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from app.core.security import create_access_token
-from app.crud.user import authenticate_user, register_user_with_organization, get_user_by_email
+from app.crud.user import get_user_by_email
+from app.services.auth_service import authenticate_user, register_user_with_organization
 from app.db.session import get_db
 from app.schemas.auth import Token, UserAuthResponse, UserLogin, UserRegister
 from app.api.deps import CurrentUser

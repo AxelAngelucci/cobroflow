@@ -1,11 +1,12 @@
 import { Component, ChangeDetectionStrategy, input, output, signal } from '@angular/core';
 import { CurrencyPipe } from '@angular/common';
+import { LucideAngularModule } from 'lucide-angular';
 import { ActivityItem } from '../../models/dashboard.models';
 
 @Component({
   selector: 'app-activity-timeline',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [CurrencyPipe],
+  imports: [CurrencyPipe, LucideAngularModule],
   template: `
     <div class="activity-card">
       <div class="card-header">
@@ -48,7 +49,7 @@ import { ActivityItem } from '../../models/dashboard.models';
                   {{ item.amount | currency:'$':'symbol':'1.0-0' }}
                 </span>
               }
-              <i data-lucide="external-link" class="external-icon"></i>
+              <lucide-icon name="external-link" class="external-icon"></lucide-icon>
             </div>
           </div>
         }

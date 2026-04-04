@@ -277,7 +277,7 @@ export class ClientsService {
         invoiceCount: invoices.length,
         overdueCount: overdueInvoices.length,
         lastPaymentDate: payments[0]?.paymentDate,
-        statusLabel: this.calculateStatusLabel(overdueAmount, clientResponse.risk_score || 0, invoices),
+        statusLabel: this.calculateStatusLabel(overdueAmount, clientResponse.riskScore || 0, invoices),
         invoices,
         payments: payments.map(p => ({ ...p, allocations: [] })),
         recentActivity: this.generateActivityFromData(invoices, payments)
@@ -459,58 +459,57 @@ export class ClientsService {
   private mapClientFromApi(api: ClientApiResponse): Client {
     return {
       id: api.id,
-      organizationId: api.organization_id,
-      erpId: api.erp_id || undefined,
+      organizationId: api.organizationId,
+      erpId: api.erpId || undefined,
       name: api.name,
       email: api.email || undefined,
       phone: api.phone || undefined,
-      taxId: api.tax_id || undefined,
-      riskScore: api.risk_score || undefined,
+      taxId: api.taxId || undefined,
+      riskScore: api.riskScore || undefined,
       tags: api.tags || undefined,
-      aiProfileSummary: api.ai_profile_summary || undefined,
-      createdAt: new Date(api.created_at)
+      aiProfileSummary: api.aiProfileSummary || undefined,
+      createdAt: new Date(api.createdAt)
     };
   }
 
   private mapInvoiceFromApi(api: InvoiceApiResponse): Invoice {
     return {
       id: api.id,
-      organizationId: api.organization_id,
-      debtorId: api.debtor_id,
-      invoiceNumber: api.invoice_number,
-      issueDate: new Date(api.issue_date),
-      dueDate: new Date(api.due_date),
+      organizationId: api.organizationId,
+      debtorId: api.debtorId,
+      invoiceNumber: api.invoiceNumber,
+      issueDate: new Date(api.issueDate),
+      dueDate: new Date(api.dueDate),
       amount: parseFloat(api.amount),
       balance: parseFloat(api.balance),
       currency: api.currency,
       status: api.status,
-      fileUrl: api.file_url || undefined,
-      erpMetadata: api.erp_metadata || undefined
+      fileUrl: api.fileUrl || undefined,
+      erpMetadata: api.erpMetadata || undefined
     };
   }
 
   private mapPaymentFromApi(api: PaymentApiResponse): Payment {
     return {
       id: api.id,
-      organizationId: api.organization_id,
-      debtorId: api.debtor_id,
+      organizationId: api.organizationId,
+      debtorId: api.debtorId,
       amount: parseFloat(api.amount),
-      paymentDate: new Date(api.payment_date),
+      paymentDate: new Date(api.paymentDate),
       method: api.method || undefined,
-      referenceNumber: api.reference_number || undefined,
-      proofFileUrl: api.proof_file_url || undefined
+      referenceNumber: api.referenceNumber || undefined,
+      proofFileUrl: api.proofFileUrl || undefined
     };
   }
 
   private enrichClientsWithStats(apiClients: ClientApiResponse[]): ClientWithStats[] {
-    // Use aggregated stats from backend - no additional API calls needed
     return apiClients.map(apiClient => {
       const client = this.mapClientFromApi(apiClient);
 
-      const totalDebt = apiClient.total_debt ? parseFloat(apiClient.total_debt) : 0;
-      const overdueAmount = apiClient.overdue_amount ? parseFloat(apiClient.overdue_amount) : 0;
-      const invoiceCount = apiClient.total_invoices || 0;
-      const overdueCount = apiClient.overdue_invoices || 0;
+      const totalDebt = apiClient.totalDebt ? parseFloat(apiClient.totalDebt) : 0;
+      const overdueAmount = apiClient.overdueAmount ? parseFloat(apiClient.overdueAmount) : 0;
+      const invoiceCount = apiClient.totalInvoices || 0;
+      const overdueCount = apiClient.overdueInvoices || 0;
 
       return {
         ...client,

@@ -1,7 +1,6 @@
+import os
 from pydantic_settings import BaseSettings, SettingsConfigDict
-from pydantic import computed_field
 from functools import lru_cache
-from urllib.parse import quote_plus
 
 
 class Settings(BaseSettings):
@@ -19,30 +18,27 @@ class Settings(BaseSettings):
     APP_VERSION: str = "0.1.0"
     DEBUG: bool = False
 
+    # Environment: "local" | "production" | "" (auto-detect)
+    # Auto-detection: K_SERVICE present → production, else → local
+    APP_ENV: str = ""
+
     # API
     API_V1_PREFIX: str = "/api/v1"
 
-    # Database - PostgreSQL on GCP
-    DB_HOST: str = "localhost"
-    DB_PORT: int = 5432
-    DB_NAME: str = "postgres"
-    DB_USER: str = "postgres"
-    DB_PASSWORD: str = ""
+    # ── Database (Supabase) ──────────────────────────────────────────────────
+    # Set DATABASE_URL to the full Supabase connection string.
+    # For local development, defaults to a local PostgreSQL instance.
+    DATABASE_URL: str = "postgresql://postgres:postgres@localhost:5432/cobroflow"
 
     # GCP
     GCP_PROJECT_ID: str = ""
     GCP_LOCATION: str = "us-central1"
+    GEMINI_API_KEY: str = ""
 
     # Vertex AI
-    VERTEX_VECTOR_SEARCH_INDEX_ID: str = ""
-    VERTEX_VECTOR_SEARCH_ENDPOINT_ID: str = ""
     VERTEX_EMBEDDING_MODEL: str = "text-embedding-005"
     VERTEX_FLASH_MODEL: str = "gemini-2.0-flash-001"
     VERTEX_PRO_MODEL: str = "gemini-2.5-pro-preview-06-05"
-
-    # When true, uses PostgreSQL + numpy for vector search instead of Vertex AI
-    # Vector Search (saves ~$200/mo). Embeddings and Gemini still use Vertex AI.
-    VERTEX_LOCAL_VECTOR_STORE: bool = True
 
     # Cloud Tasks
     CLOUD_TASKS_QUEUE_CAMPAIGNS: str = "campaign-evaluation"
@@ -50,41 +46,36 @@ class Settings(BaseSettings):
     CLOUD_RUN_SERVICE_URL: str = ""
     CLOUD_TASKS_SERVICE_ACCOUNT: str = ""  # e.g. my-sa@my-project.iam.gserviceaccount.com
 
-    @computed_field
-    @property
-    def DATABASE_URL(self) -> str:
-        """Build database URL.
-
-        Supports two modes:
-        - TCP: DB_HOST is an IP/hostname (e.g. "34.61.165.82" or "localhost")
-        - Unix socket: DB_HOST starts with "/" (e.g. "/cloudsql/project:region:instance")
-          Used by Cloud SQL Auth Proxy sidecar in Cloud Run.
-        """
-        encoded_password = quote_plus(self.DB_PASSWORD)
-        if self.DB_HOST.startswith("/"):
-            # Cloud SQL Auth Proxy Unix socket
-            return (
-                f"postgresql://{self.DB_USER}:{encoded_password}"
-                f"@/{self.DB_NAME}?host={self.DB_HOST}"
-            )
-        return (
-            f"postgresql://{self.DB_USER}:{encoded_password}"
-            f"@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
-        )
-
     # Security
     SECRET_KEY: str = "your-secret-key-change-in-production"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 1440
     ALGORITHM: str = "HS256"
 
     # CORS
     CORS_ORIGINS: list[str] = ["http://localhost:4200", "http://localhost:3000"]
 
+    # Dev / testing
+    AI_MOCK_MODE: bool = False
+
+    # Communication — Twilio
+    TWILIO_ACCOUNT_SID: str = ""
+    TWILIO_AUTH_TOKEN: str = ""
+    TWILIO_WHATSAPP_NUMBER: str = ""
+
+    # Communication — SendGrid
+    SENDGRID_API_KEY: str = ""
+    SENDGRID_FROM_EMAIL: str = ""
+    SENDGRID_FROM_NAME: str = "CobroFlow"
+
 
 @lru_cache
 def get_settings() -> Settings:
     """Get cached settings instance."""
-    return Settings()
+    s = Settings()
+    import re
+    masked = re.sub(r"(?<=://)([^:]+):([^@]+)@", r"\1:***@", s.DATABASE_URL)
+    print(f"[config] DATABASE_URL={masked}")
+    return s
 
 
 settings = get_settings()

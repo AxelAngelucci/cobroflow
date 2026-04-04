@@ -249,13 +249,61 @@ def process_all_documents(
     )
 
 
+@router.post("/reprocess-all", response_model=ProcessAllResponse)
+def reprocess_all_documents(
+    current_user: CurrentUser,
+    db: Annotated[Session, Depends(get_db)],
+) -> ProcessAllResponse:
+    """Delete all chunks and re-vectorize all documents for the organization.
+
+    Use this after migrating vector storage (e.g. Cloud SQL → Supabase pgvector).
+
+    Example:
+        curl -X POST .../api/v1/ai-training/reprocess-all \\
+          -H "Authorization: Bearer <token>"
+    """
+    org_id = _require_org(current_user)
+
+    # Delete all existing chunks for the org
+    from sqlalchemy import delete
+    db.execute(
+        delete(AIDocumentChunk).where(AIDocumentChunk.organization_id == org_id)
+    )
+
+    # Reset all documents to PENDING
+    stmt = select(AITrainingDocument).where(
+        AITrainingDocument.organization_id == org_id,
+    )
+    all_docs = list(db.execute(stmt).scalars().all())
+    for doc in all_docs:
+        doc.status = TrainingDocStatus.PENDING
+        doc.chunk_count = 0
+    db.commit()
+
+    # Re-process each document
+    total_chunks = 0
+    errors: list[str] = []
+    for doc in all_docs:
+        try:
+            chunks = _process_single_document(db, doc, org_id)
+            total_chunks += chunks
+        except Exception as e:
+            errors.append(f"Document {doc.id} ({doc.name}): {e}")
+            logger.exception("Failed to reprocess document %s", doc.id)
+
+    return ProcessAllResponse(
+        documents_processed=len(all_docs) - len(errors),
+        total_chunks_created=total_chunks,
+        errors=errors,
+    )
+
+
 def _process_single_document(
     db: Session,
     doc: AITrainingDocument,
     org_id: uuid.UUID,
 ) -> int:
     """Process a single document: chunk and vectorize."""
-    import numpy as np
     from app.services.document_processor import DocumentProcessor
     from app.services.vector_search import VectorSearchService
 
@@ -304,9 +352,7 @@ def _process_single_document(
         db_chunk.metadata_ = chunk.metadata
         # Store embedding vector if in local mode
         if local_embeddings and i < len(local_embeddings):
-            db_chunk.embedding_vector = np.array(
-                local_embeddings[i], dtype=np.float32
-            ).tobytes()
+            db_chunk.embedding_vector = local_embeddings[i]
         db.add(db_chunk)
 
     doc.status = TrainingDocStatus.PROCESSED
@@ -433,27 +479,16 @@ def chat_with_knowledge_base(
         db=db,
     )
 
-    # Hydrate chunk texts from PostgreSQL
+    # search_similar() returns AIDocumentChunk objects directly
     sources: list[dict] = []
     context_texts: list[str] = []
-    if results:
-        dp_ids = [r.datapoint_id for r in results]
-        stmt = select(AIDocumentChunk).where(
-            AIDocumentChunk.vertex_datapoint_id.in_(dp_ids),
-        )
-        chunks_map = {
-            c.vertex_datapoint_id: c
-            for c in db.execute(stmt).scalars().all()
-        }
-        for r in results:
-            chunk = chunks_map.get(r.datapoint_id)
-            if chunk:
-                context_texts.append(chunk.chunk_text)
-                sources.append({
-                    "datapoint_id": r.datapoint_id,
-                    "score": round(r.score, 4),
-                    "text_preview": chunk.chunk_text[:150] + "...",
-                })
+    for chunk in results:
+        context_texts.append(chunk.chunk_text)
+        sources.append({
+            "datapoint_id": str(chunk.vertex_datapoint_id),
+            "score": 1.0,
+            "text_preview": chunk.chunk_text[:150] + "...",
+        })
 
     # Build prompt and call Gemini
     import vertexai

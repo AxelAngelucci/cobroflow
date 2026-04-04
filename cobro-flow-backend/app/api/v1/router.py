@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 
-from app.api.v1.endpoints import auth, health, clients, campaigns, communications, ai_agent, ai_training
+from app.api.v1.endpoints import auth, health, clients, campaigns, communications, ai_agent, ai_training, webhooks, dashboard
+from app.workers import campaign_worker, message_worker
 
 api_router = APIRouter()
 
@@ -12,3 +13,7 @@ api_router.include_router(campaigns.router, prefix="/campaigns", tags=["campaign
 api_router.include_router(communications.router, prefix="/communications", tags=["communications"])
 api_router.include_router(ai_agent.router, prefix="/ai-agent", tags=["ai-agent"])
 api_router.include_router(ai_training.router, prefix="/ai-training", tags=["ai-training"])
+api_router.include_router(webhooks.router, prefix="/webhook", tags=["webhooks"])
+api_router.include_router(dashboard.router, prefix="/dashboard", tags=["dashboard"])
+api_router.include_router(campaign_worker.router, prefix="/workers", tags=["workers"])
+api_router.include_router(message_worker.router, prefix="/workers", tags=["workers"])

@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.models.ai_agent import (
     AgentStatus, AgentTone, ConversationStatus, MessageRole,
@@ -178,6 +178,11 @@ class AIConversationMessageResponse(BaseModel):
     cost: float | None = None
     metadata_: dict | None = Field(None, alias="metadata")
     created_at: datetime
+
+    @field_validator("metadata_", mode="before")
+    @classmethod
+    def coerce_metadata(cls, v):
+        return v if isinstance(v, dict) else None
 
 
 class AIConversationReply(BaseModel):

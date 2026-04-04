@@ -105,29 +105,6 @@ export class AuthService {
   }
 
   /**
-   * Development only: Login with mock user
-   * This bypasses the API and sets a mock user for testing
-   */
-  devLogin(): void {
-    if (!this.isBrowser) return;
-    
-    const mockUser: User = {
-      id: 'dev-user-123',
-      email: 'dev@cobroflow.com',
-      full_name: 'Usuario Desarrollo',
-      organization_id: 'org-dev-123',
-      role: 'admin',
-      is_active: true,
-      created_at: new Date().toISOString()
-    };
-
-    // Store mock token and user
-    sessionStorage.setItem(TOKEN_KEY, 'dev-mock-token');
-    this.storeUser(mockUser);
-    this.currentUserSignal.set(mockUser);
-  }
-
-  /**
    * Update user data in the store
    */
   updateUserData(userData: Partial<User>): void {
@@ -166,21 +143,14 @@ export class AuthService {
     });
   }
 
-  private storeToken(token: string, rememberMe: boolean): void {
+  private storeToken(token: string, _rememberMe?: boolean): void {
     if (!this.isBrowser) return;
-    
-    if (rememberMe) {
-      localStorage.setItem(TOKEN_KEY, token);
-    } else {
-      sessionStorage.setItem(TOKEN_KEY, token);
-    }
+    localStorage.setItem(TOKEN_KEY, token);
   }
 
   private storeUser(user: User): void {
     if (!this.isBrowser) return;
-    
-    const storage = localStorage.getItem(TOKEN_KEY) ? localStorage : sessionStorage;
-    storage.setItem(USER_KEY, JSON.stringify(user));
+    localStorage.setItem(USER_KEY, JSON.stringify(user));
   }
 
   private getStoredUser(): User | null {

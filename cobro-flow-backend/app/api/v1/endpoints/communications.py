@@ -1,7 +1,9 @@
+from datetime import datetime, timezone, timedelta
 from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import func, case
 from sqlalchemy.orm import Session
 
 from app.api.deps import CurrentUser
@@ -9,6 +11,7 @@ from app.crud import communication as comm_crud
 from app.db.session import get_db
 from app.models.campaign import ChannelType
 from app.models.communication import (
+    CommunicationLog, CommunicationDirection,
     TemplateStatus, WorkflowStatus, CommunicationStatus,
 )
 from app.schemas.communication import (
@@ -304,22 +307,91 @@ def get_hub_summary(
     db: Annotated[Session, Depends(get_db)],
 ) -> CommunicationHubSummary:
     _check_org(current_user)
-    # Return mock summary for now - will be computed from real data later
+    org_id = current_user.organization_id
+
+    now = datetime.now(timezone.utc)
+    today_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
+    yesterday_start = today_start - timedelta(days=1)
+
+    def _query_period(start: datetime, end: datetime):
+        """Returns (sent, opened, replied) counts for outbound logs in a time window."""
+        rows = db.execute(
+            db.query(
+                func.count().label("sent"),
+                func.sum(case((CommunicationLog.opened_at.isnot(None), 1), else_=0)).label("opened"),
+                func.sum(case((CommunicationLog.responded_at.isnot(None), 1), else_=0)).label("replied"),
+            )
+            .filter(
+                CommunicationLog.organization_id == org_id,
+                CommunicationLog.direction == CommunicationDirection.OUTBOUND,
+                CommunicationLog.created_at >= start,
+                CommunicationLog.created_at < end,
+            )
+            .statement
+        ).fetchone()
+        sent = rows.sent or 0
+        opened = rows.opened or 0
+        replied = rows.replied or 0
+        open_rate = round((opened / sent * 100), 1) if sent > 0 else 0.0
+        reply_rate = round((replied / sent * 100), 1) if sent > 0 else 0.0
+        return sent, open_rate, reply_rate
+
+    sent_today, open_rate_today, reply_rate_today = _query_period(today_start, now)
+    sent_yesterday, open_rate_yesterday, reply_rate_yesterday = _query_period(yesterday_start, today_start)
+
+    def _pct_change(current: float, previous: float) -> float:
+        if previous == 0:
+            return 0.0
+        return round((current - previous) / previous * 100, 1)
+
+    sent_change = _pct_change(sent_today, sent_yesterday)
+    open_change = _pct_change(open_rate_today, open_rate_yesterday)
+    reply_change = _pct_change(reply_rate_today, reply_rate_yesterday)
+
+    # Per-channel breakdown for today
+    channel_rows = db.execute(
+        db.query(
+            CommunicationLog.channel,
+            func.count().label("cnt"),
+        )
+        .filter(
+            CommunicationLog.organization_id == org_id,
+            CommunicationLog.direction == CommunicationDirection.OUTBOUND,
+            CommunicationLog.created_at >= today_start,
+        )
+        .group_by(CommunicationLog.channel)
+        .statement
+    ).fetchall()
+
+    channel_counts: dict[str, int] = {row.channel: row.cnt for row in channel_rows}
+
+    channel_meta = {
+        ChannelType.WHATSAPP: ("active", "Operativo"),
+        ChannelType.EMAIL: ("active", "Operativo"),
+        ChannelType.CALL: ("manual", "Manual"),
+        ChannelType.SMS: ("inactive", "No configurado"),
+    }
+
+    channels = [
+        ChannelSummary(
+            channel=ch,
+            status=meta[0],
+            sent_today=channel_counts.get(ch.value, 0),
+            description=meta[1],
+        )
+        for ch, meta in channel_meta.items()
+    ]
+
     return CommunicationHubSummary(
         kpis=CommunicationHubKpis(
-            sent_today=1247,
-            sent_today_change=18.0,
-            open_rate=68.5,
-            open_rate_change=5.2,
-            reply_rate=32.1,
-            reply_rate_change=-2.1,
-            payments_post_contact=89,
-            payments_post_contact_change=24.0,
+            sent_today=sent_today,
+            sent_today_change=sent_change,
+            open_rate=open_rate_today,
+            open_rate_change=open_change,
+            reply_rate=reply_rate_today,
+            reply_rate_change=reply_change,
+            payments_post_contact=0,
+            payments_post_contact_change=0.0,
         ),
-        channels=[
-            ChannelSummary(channel=ChannelType.EMAIL, status="active", sent_today=523, description="Operativo"),
-            ChannelSummary(channel=ChannelType.WHATSAPP, status="active", sent_today=412, description="Operativo"),
-            ChannelSummary(channel=ChannelType.CALL, status="manual", sent_today=89, description="Manual"),
-            ChannelSummary(channel=ChannelType.SMS, status="inactive", sent_today=0, description="No configurado"),
-        ],
+        channels=channels,
     )

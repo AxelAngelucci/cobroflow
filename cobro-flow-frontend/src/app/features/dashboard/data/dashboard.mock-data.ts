@@ -192,6 +192,12 @@ export const MOCK_NAV_ITEMS: NavItem[] = [
     route: '/dashboard/agente-ia'
   },
   {
+    id: 'conversaciones',
+    label: 'Conversaciones',
+    icon: 'message-circle',
+    route: '/dashboard/agente-ia/conversaciones'
+  },
+  {
     id: 'reportes',
     label: 'Reportes',
     icon: 'bar-chart-2',
