@@ -98,8 +98,10 @@ import { environment } from '../../../../../environments/environment';
               @for (msg of service.messages(); track msg.id) {
                 @if (msg.role === 'agent') {
                   <div class="msg-row agent">
-                    <div class="bot-icon">
-                      <i class="lucide-bot"></i>
+                    <div class="msg-avatar bot-avatar">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <rect width="18" height="10" x="3" y="11" rx="2"/><circle cx="12" cy="5" r="2"/><path d="M12 7v4"/><line x1="8" x2="8" y1="16" y2="16"/><line x1="16" x2="16" y1="16" y2="16"/>
+                      </svg>
                     </div>
                     <div class="msg-group">
                       <div class="msg-bubble agent-bubble">{{ msg.content }}</div>
@@ -111,6 +113,23 @@ import { environment } from '../../../../../environments/environment';
                     <div class="msg-group right">
                       <div class="msg-bubble user-bubble">{{ msg.content }}</div>
                       <span class="msg-time">Cliente &middot; {{ formatTime(msg.createdAt) }}</span>
+                    </div>
+                    <div class="msg-avatar user-avatar">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+                      </svg>
+                    </div>
+                  </div>
+                } @else if (msg.role === 'operator') {
+                  <div class="msg-row operator">
+                    <div class="msg-avatar operator-avatar">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M3 18v-6a9 9 0 0 1 18 0v6"/><path d="M21 19a2 2 0 0 1-2 2h-1a2 2 0 0 1-2-2v-3a2 2 0 0 1 2-2h3zM3 19a2 2 0 0 0 2 2h1a2 2 0 0 0 2-2v-3a2 2 0 0 0-2-2H3z"/>
+                      </svg>
+                    </div>
+                    <div class="msg-group">
+                      <div class="msg-bubble operator-bubble">{{ msg.content }}</div>
+                      <span class="msg-time">Operador &middot; {{ formatTime(msg.createdAt) }}</span>
                     </div>
                   </div>
                 } @else {
@@ -256,7 +275,12 @@ import { environment } from '../../../../../environments/environment';
     .msg-row.agent { align-items: flex-start; }
     .msg-row.user { justify-content: flex-end; }
     .msg-row.system { justify-content: center; }
-    .bot-icon { width: 32px; height: 32px; border-radius: 16px; background: #1E40AF; display: flex; align-items: center; justify-content: center; color: white; font-size: 16px; flex-shrink: 0; }
+    .msg-avatar { width: 34px; height: 34px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .bot-avatar { background: #1E40AF; color: white; }
+    .user-avatar { background: #E5E7EB; color: #374151; }
+    .operator-avatar { background: #059669; color: white; }
+    .msg-row.operator { align-items: flex-start; }
+    .operator-bubble { background: #ECFDF5; color: #065F46; border-radius: 16px 16px 16px 4px; border: 1px solid #6EE7B7; }
     .msg-group { display: flex; flex-direction: column; gap: 4px; }
     .msg-group.right { align-items: flex-end; }
     .msg-bubble { padding: 12px 16px; font-size: 14px; line-height: 1.5; max-width: 420px; white-space: pre-wrap; }
@@ -383,7 +407,7 @@ export class ConversacionesComponent implements OnInit {
   async sendMessage(): Promise<void> {
     if (!this.newMessage.trim() || !this.service.selectedConversation()) return;
     await this.service.sendMessage(this.service.selectedConversation()!.id, {
-      role: 'agent',
+      role: 'operator',
       content: this.newMessage.trim(),
     });
     this.newMessage = '';

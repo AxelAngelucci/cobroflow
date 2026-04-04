@@ -3,7 +3,7 @@
 export type AgentStatus = 'active' | 'paused' | 'training' | 'error';
 export type AgentTone = 'professional' | 'friendly' | 'firm' | 'empathetic';
 export type ConversationStatus = 'active' | 'resolved' | 'escalated' | 'expired';
-export type MessageRole = 'agent' | 'client' | 'system';
+export type MessageRole = 'agent' | 'client' | 'system' | 'operator';
 export type MessageSentiment = 'positive' | 'neutral' | 'negative';
 export type TrainingDocStatus = 'pending' | 'processing' | 'processed' | 'failed';
 export type TrainingSessionStatus = 'running' | 'completed' | 'failed';
@@ -263,7 +263,8 @@ export const CONVERSATION_STATUS_LABELS: Record<ConversationStatus, string> = {
 export const MESSAGE_ROLE_LABELS: Record<MessageRole, string> = {
   agent: 'Agente',
   client: 'Cliente',
-  system: 'Sistema'
+  system: 'Sistema',
+  operator: 'Operador'
 };
 
 export const SENTIMENT_LABELS: Record<MessageSentiment, string> = {

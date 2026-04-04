@@ -41,6 +41,7 @@ class MessageRole(str, PyEnum):
     AGENT = "agent"
     CLIENT = "client"
     SYSTEM = "system"
+    OPERATOR = "operator"
 
 
 class MessageSentiment(str, PyEnum):
