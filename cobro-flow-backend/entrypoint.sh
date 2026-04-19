@@ -4,6 +4,7 @@ set -e
 echo "=== CobroFlow Backend Starting ==="
 
 # Run database migrations
+echo "DATABASE_URL prefix: ${DATABASE_URL:0:40}"
 echo "Running database migrations..."
 python -m alembic upgrade head
 echo "Migrations completed."
