@@ -205,7 +205,7 @@ def _process_campaign(db: Session, campaign: Campaign) -> CampaignEvaluation:
                     stage_id=str(stage.id),
                     action_id=str(action.id),
                     debtor_id=str(debtor.id),
-                    channel=action.channel.value,
+                    channel=action.channel.value if hasattr(action.channel, 'value') else action.channel,
                     ai_enabled=action.ai_enabled,
                     tone_instructions=stage.tone_instructions or "",
                 )
