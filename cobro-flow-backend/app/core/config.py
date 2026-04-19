@@ -56,6 +56,7 @@ class Settings(BaseSettings):
 
     # Dev / testing
     AI_MOCK_MODE: bool = False
+    TEST_RECIPIENT_PHONE: str = ""  # If set, overrides all WhatsApp/SMS recipients
 
     # Communication — Twilio
     TWILIO_ACCOUNT_SID: str = ""

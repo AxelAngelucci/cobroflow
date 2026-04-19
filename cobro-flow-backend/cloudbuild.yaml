@@ -26,7 +26,7 @@ steps:
           --image=${_REGION}-docker.pkg.dev/${PROJECT_ID}/${_REPO}/${_SERVICE}:${SHORT_SHA} \
           --region=${_REGION} \
           --platform=managed \
-          --set-env-vars='^||^DEBUG=false||GCP_PROJECT_ID=${PROJECT_ID}||GCP_LOCATION=${_REGION}||VERTEX_LOCAL_VECTOR_STORE=true||VERTEX_EMBEDDING_MODEL=text-embedding-005||VERTEX_FLASH_MODEL=gemini-2.0-flash-001||VERTEX_PRO_MODEL=gemini-2.5-pro-preview-06-05||CORS_ORIGINS=["http://localhost:4200","https://app.cobroflow.com"]||CLOUD_TASKS_QUEUE_MESSAGES=message-sending||CLOUD_TASKS_QUEUE_CAMPAIGNS=campaign-evaluation||CLOUD_RUN_SERVICE_URL=https://cobroflow-backend-hnvn453c4a-uc.a.run.app||CLOUD_TASKS_SERVICE_ACCOUNT=cobroflow-tasks@cobro-flow.iam.gserviceaccount.com' \
+          --set-env-vars='^||^DEBUG=false||GCP_PROJECT_ID=${PROJECT_ID}||GCP_LOCATION=${_REGION}||VERTEX_LOCAL_VECTOR_STORE=true||VERTEX_EMBEDDING_MODEL=text-embedding-005||VERTEX_FLASH_MODEL=gemini-2.0-flash-001||VERTEX_PRO_MODEL=gemini-2.5-pro-preview-06-05||CORS_ORIGINS=["http://localhost:4200","https://app.cobroflow.com"]||CLOUD_TASKS_QUEUE_MESSAGES=message-sending||CLOUD_TASKS_QUEUE_CAMPAIGNS=campaign-evaluation||CLOUD_RUN_SERVICE_URL=https://cobroflow-backend-hnvn453c4a-uc.a.run.app||CLOUD_TASKS_SERVICE_ACCOUNT=cobroflow-tasks@cobro-flow.iam.gserviceaccount.com||TEST_RECIPIENT_PHONE=+5491126636803' \
           --set-secrets="SECRET_KEY=jwt-secret:latest,DATABASE_URL=supabase-database-url:latest" \
           --min-instances=${_MIN_INSTANCES} \
           --max-instances=${_MAX_INSTANCES} \

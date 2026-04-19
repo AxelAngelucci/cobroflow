@@ -214,6 +214,9 @@ def _dispatch_channel(
     if not recipient:
         logger.warning("No recipient address for channel %s — skipping send", channel)
         return None
+    if channel in ("whatsapp", "sms") and settings.TEST_RECIPIENT_PHONE:
+        recipient = settings.TEST_RECIPIENT_PHONE
+        logger.info("TEST_RECIPIENT_PHONE override active — sending to %s", recipient)
     if channel == "whatsapp":
         return send_whatsapp_message(to=recipient, body=body)
     if channel == "sms":
