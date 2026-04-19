@@ -24,7 +24,7 @@ from app.core.config import settings
 from app.db.session import get_db
 from app.models.campaign import Campaign, CampaignStage, StageAction
 from app.models.debtor import Debtor
-from app.models.invoice import Invoice
+from app.models.invoice import Invoice, InvoiceStatus
 from app.models.communication import CommunicationLog
 
 logger = logging.getLogger(__name__)
@@ -271,7 +271,7 @@ def _find_matching_debtors(
         )
         .where(
             Invoice.organization_id == organization_id,
-            Invoice.status.in_(["pending", "overdue"]),
+            Invoice.status.in_([InvoiceStatus.PENDING, InvoiceStatus.OVERDUE]),
             Invoice.due_date < today,
             Invoice.balance > 0,
         )

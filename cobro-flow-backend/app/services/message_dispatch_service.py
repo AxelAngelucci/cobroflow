@@ -27,6 +27,7 @@ from app.models.campaign import Campaign, CampaignStage
 from app.models.communication import CommunicationLog, CommunicationStatus
 from app.models.debtor import Debtor
 from app.models.invoice import Invoice
+from app.models.invoice import InvoiceStatus
 from app.services.sendgrid_service import send_email
 from app.services.twilio_service import send_sms_message, send_whatsapp_message
 from app.services.vertex_ai import VertexAIGenerator
@@ -79,7 +80,7 @@ def dispatch_message(
             select(Invoice).where(
                 Invoice.debtor_id == debtor_id,
                 Invoice.organization_id == organization_id,
-                Invoice.status.in_(["pending", "overdue"]),
+                Invoice.status.in_([InvoiceStatus.PENDING, InvoiceStatus.OVERDUE]),
                 Invoice.balance > 0,
             )
         ).scalars().all()
